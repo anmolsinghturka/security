@@ -1,0 +1,270 @@
+﻿@page "/"
+
+@using Microsoft.VisualBasic;
+@using PicSecurityChecks.Shared
+@using System
+@using System.Collections.Generic
+@using System.Threading.Tasks
+@using PicSecurityChecks.Client.Interfaces
+@using System.Text;
+@using PicSecurityChecks.Client.Class
+@using System.Web
+@using PicSecurityChecks.Client.Components
+@using Microsoft.AspNetCore.Components.Authorization
+
+<section class="SecurityCheck">
+    <h1 class="page-title bg-primary" style="text-align:center">Police Information Checks</h1>
+    <EditForm Model="@pic_SecurityCheckName">
+        <div class="form-group">
+            <label for="userName">Enter Regimental:</label>
+            <InputText id="userName" class="form-control-sm col-md-2 col-lg-3 col-sm-12" @bind-Value="@userName" />
+            <button type="button" class="btn btn-primary edit-btn" @onclick="() => GetUserApplications()">Search</button>
+        </div>
+        @if (search)
+        {
+            @if (pic_SecurityCheckNames == null)
+            {
+                <p><em>Loading...</em></p>
+            }
+            else
+            {
+                <div class="col-12" style="overflow:auto; height:80%">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th><InputCheckbox id="checkAll" @bind-Value="@checkAll" @onclick="setCheckAll" /> </th>
+                                <th>Application</th>
+                                <th>Name</th>
+                                <th>Other Names</th>
+                                <th>Gender</th>
+                                <th>VS Check</th>
+                                <th>Reason</th>
+                                <th>DOB</th>
+                                <th>Received Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var check in SecurityNamesFlagged)
+                            {
+                                @if (check.nameFlagged)
+                                {
+                                    <tr>
+                                        <td>
+                                            <InputCheckbox id="checkName" @bind-Value="@check.CheckName" />
+                                        </td>
+                                        <td>@check.application_number</td>
+                                        <td style="background-color:orangered">@check.LastName.ToUpper(),&nbsp;@check.FirstName.ToUpper()&nbsp;@check.MiddleName.ToUpper()</td>
+                                        <td>@check.OtherName.ToUpper()</td>
+                                        <td>@check.Gender.ToUpper()</td>
+                                        <td>@check.VSCheck.ToUpper()</td>
+                                        <td>@check.ReportedReason</td>
+                                        <td>@convertDOB(check.dob)</td>
+                                        <td>@check.ReceivedDate</td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td>
+                                            <InputCheckbox id="checkName" @bind-Value="@check.CheckName" />
+                                        </td>
+                                        <td>@check.application_number</td>
+                                        <td>@check.LastName.ToUpper(),&nbsp;@check.FirstName.ToUpper()&nbsp;@check.MiddleName.ToUpper()</td>
+                                        <td>@check.OtherName.ToUpper()</td>
+                                        <td>@check.Gender.ToUpper()</td>
+                                        <td>@check.VSCheck.ToUpper()</td>
+                                        <td>@check.ReportedReason</td>
+                                        <td>@convertDOB(check.dob)</td>
+                                        <td>@check.ReceivedDate</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="form-group">
+                    <button type="button" class="btn btn-primary edit-btn" @onclick="CPICSearch">Generate CPIC File...</button>
+                    <CpicSearch @ref="cpicSearch" results="@files" CloseEventCallBack="@CallCPICFile_OnDialogClose"></CpicSearch>
+                    <button type="button" class="btn btn-primary edit-btn" @onclick="NicheSearch">Query Sentry RMS</button>
+                    <SentrySearch @ref="sentrySearch" checkNames="@pic_SecurityCheckNames" reg="@regimental" universalQ="@universalQ" />
+                    <button type="button" class="btn btn-primary edit-btn" @onclick="PrintList">Print List</button>
+                </div>
+            }
+        }
+    </EditForm>
+</section>
+
+@code
+{
+    [Inject]
+    public ISecurityCheckNamesDataService securityCheckNamesDataService { get; set; }
+    [Inject]
+    public IFlaggedNamesDataService flaggedNamesDataService { get; set; }
+    [Inject]
+    public ISearchFlaggedNamesDataService searchFlaggedNamesDataService { get; set; }
+    [Inject]
+    public ICurrentUserDataService currentUserDataService { get; set; }
+    [Inject]
+    public NavigationManager navigationManager { get; set; }
+    [Inject]
+    public IConfiguration configuration { get; set; }
+    [Inject]
+    public IJSRuntime jSRuntime { get; set; }
+
+
+    protected CpicSearch cpicSearch { get; set; }
+    protected SentrySearch sentrySearch { get; set; }
+    public PIC_SecurityCheckNames? pic_SecurityCheckName { get; set; } = new PIC_SecurityCheckNames();
+    public List<PIC_SecurityCheckNames>? pic_SecurityCheckNames { get; set; } = new List<PIC_SecurityCheckNames>();
+    public List<PIC_SecurityCheckNames>? SecurityNamesFlagged { get; set; } = new List<PIC_SecurityCheckNames>();
+    public List<PIC_FlaggedNames>? pic_FlaggedNames { get; set; } = new List<PIC_FlaggedNames>();
+
+    public bool checkAll { get; set; } = false;
+    public List<NicheResult> nicheResults { get; set; } = new List<NicheResult>();
+    public PIC_FlaggedNames flaggedName { get; set; } = new PIC_FlaggedNames();
+
+    public string universalQ { get; set; }
+    public string userName { get; set; } = string.Empty;
+    public bool search { get; set; } = false;
+    public string name { get; set; }
+    public string test { get; set; }
+    public string VS { get; set; } = string.Empty;
+    public string regimental { get; set; } = string.Empty;
+    public char[] delimiters { get; set; }
+
+
+    public Utilities utilities { get; set; } = new Utilities();
+    public CPicNameCheck cPic { get; set; } = new CPicNameCheck();
+    private UniqueStatements uniqueStatements { get; set; } = new UniqueStatements();
+    private StringBuilder CPIC_File { get; set; } = new StringBuilder();
+    private string files { get; set; }
+    private int flagCount { get; set; } = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        delimiters = configuration.GetSection("delimitString:delimitString").Value.ToCharArray();
+        universalQ = configuration.GetSection("UniversalQuery:Uri").Value;
+    }
+
+    protected async Task GetUserApplications()
+    {
+        if (userName.Length > 0)
+        {
+            pic_SecurityCheckNames = (await securityCheckNamesDataService.GetAllRecordsForUser(userName)).ToList();
+            foreach (var check in pic_SecurityCheckNames)
+            {
+                check.CheckName = false;
+                CheckFlaggedName(check);
+            }
+        }
+        else
+        {
+            pic_SecurityCheckNames = new List<PIC_SecurityCheckNames>();
+            search = false;
+        }
+        regimental = utilities.StripAlpha(userName);
+        SecurityNamesFlagged = pic_SecurityCheckNames;
+        StateHasChanged();
+        search = true;
+    }
+
+    private void CPICSearch()
+    {
+        delimiters = configuration.GetSection("delimitString:delimitString").Value.ToCharArray();
+        uniqueStatements = new UniqueStatements();
+        CPIC_File.Clear();
+
+        if (regimental.Length == 4)
+            regimental = "0" + regimental;
+
+        foreach (var checkName in pic_SecurityCheckNames)
+        {
+            if (checkName.CheckName)
+            {
+                int queryCount = 0;
+                uniqueStatements = (cPic.CheckName(checkName, ref queryCount, regimental, delimiters, uniqueStatements));
+            }
+        }
+        foreach (string state in uniqueStatements)
+        {
+            CPIC_File.Append(state);
+        }
+        files = CPIC_File.ToString();
+        cpicSearch.Show();
+    }
+
+    private void setCheckAll()
+    {
+        if (checkAll)
+            checkAll = false;
+        else
+            checkAll = true;
+
+        foreach (var check in pic_SecurityCheckNames)
+            check.CheckName = checkAll;
+    }
+
+    private async Task NicheSearch()
+    {
+
+        //Change this when there are proper names to use in the database.
+        var reg = userName;
+        reg = utilities.StripAlpha(reg);
+        int i = 1;
+        regimental = reg;
+
+        sentrySearch.Show();
+
+    }
+
+    protected async void CallCPICFile_OnDialogClose()
+    {
+        files = string.Empty;
+        StateHasChanged();
+    }
+
+    private async void PrintList()
+    {
+        string email = string.Empty;
+
+        foreach (var check in pic_SecurityCheckNames)
+        {
+            //if (check.CheckName == true)
+            await securityCheckNamesDataService.UpdateRecord(check.applicationId, check.CheckName);
+            if (email == string.Empty)
+                email = check.email;
+        }
+        string url = configuration.GetSection("Reports:ReportServer").Value;
+        url = url + "forestGreenChecks" + configuration.GetSection("Reports:ReportSetting").Value;
+        url = url + $"&UserId={email}%";
+        await jSRuntime.InvokeVoidAsync("open", url, "_blank");
+    }
+
+
+    #region Utilities
+
+    private string convertDOB(DateTime? dob)
+    {
+        string dateOfBirth = string.Empty;
+        DateTime _dob = dob ?? DateTime.Now;
+        dateOfBirth = _dob.ToString("yyyy-MM-dd");
+
+        return dateOfBirth;
+
+    }
+
+    private async Task CheckFlaggedName(PIC_SecurityCheckNames checkName)
+    {
+        flaggedName.firstName = checkName.FirstName;
+        flaggedName.lastName = checkName.LastName;
+        flaggedName.dob = checkName.dob;
+
+        if ((await searchFlaggedNamesDataService.GetFlaggedNamesSearch(flaggedName)).ToList().Count > 0)
+            checkName.nameFlagged = true;
+        else
+            checkName.nameFlagged = false;
+
+    }
+
+    #endregion
+}

@@ -1,0 +1,133 @@
+﻿@page "/flaggednames"
+
+@using PicSecurityChecks.Shared
+@using System
+@using System.Collections.Generic
+@using System.Threading.Tasks
+@using PicSecurityChecks.Client.Interfaces
+
+<section class="FlaggedNames">
+    <h1 class="page-title bg-primary" style="text-align:center">PIC Flagged Names</h1>
+    <EditForm Model="@pic_FlaggedName">
+        <div class="form-group">
+            <label for="firstName" class="col-md-2 col-sm-12" style="text-align:right">First Name:</label>
+            <InputText id="firstName" class="form-control-sm col-3" @bind-Value="@pic_FlaggedName.firstName" />
+            <label for="lastName" class="col-md-2 col-sm-12" style="text-align:right">Last Name:</label>
+            <InputText id="lastName" class="form-control-sm col-3" @bind-Value=@pic_FlaggedName.lastName />
+        </div>
+        <br />
+        <div class="form-group">
+            <label for="otherName" class="col-md-2 col-sm-12" style="text-align:right">Other Names:</label>
+            <InputText id="otherName" class="form-control-sm col-3" @bind-Value="@pic_FlaggedName.otherNames" />
+            <label for="dob" class="col-md-2 col-sm-12" style="text-align:right">Date of birth:</label>
+            <InputDate id="dob" class="form-control-sm col-3" @bind-Value="@pic_FlaggedName.dob" />
+        </div>
+        <br />
+        <div class="form-group">
+            <label for="reason" class="col-md-2 col-sm-12" style="text-align:right">Reason:</label>
+            <InputText id="reason" class="form-control-sm col-3" @bind-Value="@pic_FlaggedName.reason" />
+            <label for="comment" class="col-md-2 col-sm-12" style="text-align:right">Comment:</label>
+            <InputText id="comment" class="form-control-sm col-3" @bind-Value=@pic_FlaggedName.comment />
+        </div>
+        <br /><br />
+        <div class="form-group">
+            <button type="button" class="btn btn-primary edit-btn" @onclick="SearchFlaggedNames">Search</button>
+        </div>
+    </EditForm>
+    @if (search)
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Last Name</th>
+                    <th>First Name</th>
+                    <th>Other Names</th>
+                    <th><button class="btn-link" @onclick="SortDob">DOB</button></th>
+                    <th>Reason</th>
+                    <th>Comments</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var flag in pic_FlaggedNames)
+                {
+                    <tr>
+                        <td>@flag.lastName</td>
+                        <td>@flag.firstName</td>
+                        <td>@flag.otherNames</td>
+                        <td>@convertDOB(@flag.dob)</td>
+                        <td>@flag.reason</td>
+                        <td>@flag.comment</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+
+    [Inject]
+    public IFlaggedNamesDataService flaggedNamesDataService { get; set; }
+    [Inject]
+    public ISearchFlaggedNamesDataService searchFlaggedNamesDataService{ get; set; }
+
+
+    public List<PIC_FlaggedNames> pic_FlaggedNames { get; set; } = new List<PIC_FlaggedNames>();
+    public PIC_FlaggedNames pic_FlaggedName { get; set; } = new PIC_FlaggedNames();
+    public bool search { get; set; } = false;
+    private bool dobSort = false;
+
+    protected async Task SearchFlaggedNames()
+    {
+        RemoveNulls();
+        pic_FlaggedNames = (await searchFlaggedNamesDataService.GetFlaggedNamesSearch(pic_FlaggedName)).ToList();
+        search = true;
+        pic_FlaggedName.firstName = clearQuestion(pic_FlaggedName.firstName);
+        pic_FlaggedName.lastName = clearQuestion(pic_FlaggedName.lastName);
+
+    }
+
+    private void RemoveNulls()
+    {
+        // Firstname and lastname are required field for the database to trick the search to something needs to be in the field when passed to the searvice.
+        if (pic_FlaggedName.firstName == string.Empty || pic_FlaggedName.firstName is null) pic_FlaggedName.firstName = "?";
+        if (pic_FlaggedName.lastName == string.Empty || pic_FlaggedName.lastName is null) pic_FlaggedName.lastName = "?";
+        pic_FlaggedName.otherNames = (pic_FlaggedName.otherNames ?? string.Empty);
+        pic_FlaggedName.reason = (pic_FlaggedName.reason ?? string.Empty);
+        pic_FlaggedName.comment = (pic_FlaggedName.comment ?? string.Empty);
+    }
+
+    private string clearQuestion(string value)
+    {
+        if (value == "?")
+            return string.Empty;
+
+        return value;
+    }
+
+    public void SortDob()
+    {
+        if (dobSort)
+        {
+            pic_FlaggedNames = pic_FlaggedNames.OrderBy(c => c.dob).ToList();
+            dobSort = false;
+        }
+        else
+        {
+            pic_FlaggedNames = pic_FlaggedNames.OrderByDescending(c => c.dob).ToList();
+            dobSort = true;
+        }
+        StateHasChanged();
+    }
+
+    private string convertDOB(DateTime? dob)
+    {
+        string dateOfBirth = string.Empty;
+        DateTime _dob = dob ?? DateTime.Now;
+        dateOfBirth = _dob.ToString("yyyy-MM-dd");
+
+        return dateOfBirth;
+
+    }
+}
+ 

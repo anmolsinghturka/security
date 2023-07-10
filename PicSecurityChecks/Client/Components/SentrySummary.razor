@@ -1,0 +1,178 @@
+﻿@using PicSecurityChecks.Shared
+
+@if (showDialog)
+{
+    <div class="modal fade show d-block" id="sentryModal" tabindex="-1" style="width:90%;">
+        @*<div class="modal-dialog modal-lg" role="document">*@
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="titlelable" style="color:black;text-align:center">Sentry Search Results</h5>
+                <button type="button" class="btn-close" @onclick="@Close" data-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="overflow:auto;height:700px;">
+                @if (@sentryResults.Count() > 10)
+                {
+                    <button type="button" class="btn btn-primary edit-btn" @onclick="@PrintResults">Print</button>
+                    <SentryPrint @ref="sentryPrint" CloseEventCallBack="ClosePrint" />
+                    <button type="button" class="btn btn-primary edit-btn" @onclick="@Close">Close</button>
+                }
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Subsystem</th>
+                            <th><button class="btn-link" @onclick="SortRef">Ref #</button> </th>
+                            <th>Name</th>
+                            <th>Sex</th>
+                            <th><button class="btn-link" @onclick="SortDob">DOB</button> </th>
+                            <th>Person Involvement</th>
+                            <th>Charges</th>
+                            <th>Occurrence Types</th>
+                            <th>FPS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+
+                        @foreach (SentryResultItem si in sortedResults)
+                        {
+                            @if (alt == 1)
+                            {
+                                SetAlt(@alt);
+                                <tr>
+                                    <td>
+                                        <a href=@si.link.ToString() target="_blank">Details</a>
+
+                                    </td>
+                                    <td>@si.subSytem</td>
+                                    <td>@si.fileNo</td>
+                                    <td>@si.name</td>
+                                    <td>@si.gender</td>
+                                    <td>@si.dob</td>
+                                    <td>@si.Involvement</td>
+                                    <td>
+                                        @foreach (NicheCharge nicheCharge in si.charges)
+                                        {
+                                            @nicheCharge.Charge <br />
+                                        }
+                                    </td>
+                                    <td>@si.occurType</td>
+                                    <td>@si.fps</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                SetAlt(@alt);
+                                <tr style="background-color:gainsboro">
+                                    <td>
+                                        <a href=@si.link.ToString() target="_blank">Details</a>
+
+                                    </td>
+                                    <td>@si.subSytem</td>
+                                    <td>@si.fileNo</td>
+                                    <td>@si.name</td>
+                                    <td>@si.gender</td>
+                                    <td>@si.dob</td>
+                                    <td>@si.Involvement</td>
+                                    <td>
+                                        @foreach (NicheCharge nicheCharge in si.charges)
+                                        {
+                                            @nicheCharge.Charge <br />
+                                        }
+                                    </td>
+                                    <td>@si.occurType</td>
+                                    <td>@si.fps</td>
+                                </tr>
+                            }
+                        }
+
+                    </tbody>
+                </table>
+                <button type="button" class="btn btn-primary edit-btn" @onclick="@PrintResults">Print</button>
+                <SentryPrint @ref="sentryPrint" CloseEventCallBack="ClosePrint" />
+                <button type="button" class="btn btn-primary edit-btn" @onclick="@Close">Close</button>
+            </div>
+        </div>
+        @*</div>*@
+    </div>
+}
+
+@code {
+    [Parameter]
+    public List<SentryResultItem> sentryResults { get; set; }
+
+    [Parameter]
+    public int id { get; set; }
+
+    private List<SentryResultItem> sortedResults { get; set; } = new List<SentryResultItem>();
+    public SentryPrint sentryPrint { get; set; } = new SentryPrint();
+    public bool showDialog { get; set; } = false;
+    public int alt { get; set; } = 1;
+    private bool dobSort = false;
+    private bool refSort = false;
+
+    public void Show(List<SentryResultItem> results)
+    {
+        showDialog = true;
+        StateHasChanged();
+        sortedResults = results;
+    }
+
+    public void Close()
+    {
+        sentryResults = new List<SentryResultItem>();
+        showDialog = false;
+        StateHasChanged();
+    }
+
+    private void SetAlt(int currentalt)
+    {
+        if (currentalt == 1)
+            alt = 0;
+        else
+            alt = 1;
+    }
+
+    public void SortDob()
+    {
+        if (dobSort)
+        {
+            sortedResults = sentryResults.OrderBy(c => c.dob).ToList();
+            dobSort = false;
+        }
+        else
+        {
+            sortedResults = sentryResults.OrderByDescending(c => c.dob).ToList();
+            dobSort = true;
+        }
+        StateHasChanged();
+    }
+
+    private void SortRef()
+    {
+        if (refSort)
+        {
+            sortedResults = sentryResults.OrderBy(c => c.fileNo).ToList();
+            refSort = false;
+        }
+        else
+        {
+            sortedResults = sentryResults.OrderByDescending(c => c.fileNo).ToList();
+            refSort = true;
+        }
+        sentryResults = sortedResults;
+        StateHasChanged();
+
+    }
+
+    public void PrintResults()
+    {
+        sentryPrint.Show(sortedResults);
+    }
+
+    public async void ClosePrint()
+    {
+        StateHasChanged();
+    }
+}
+
+

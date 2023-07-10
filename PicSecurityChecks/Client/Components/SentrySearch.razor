@@ -1,0 +1,144 @@
+﻿@using PicSecurityChecks.Client.Class;
+@using PicSecurityChecks.Client.Interfaces;
+@using PicSecurityChecks.Shared
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JsRuntime
+
+@if (showDialog)
+{
+    <div class="modal fade show d-block" id="sentryModal" tabindex="-1" role="dialog" style="width:90%;">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="titlelable" style="color:black;text-align:center">Sentry Search Results</h5>
+                    <button type="button" class="btn-close" @onclick="@Close" data-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" style="overflow:auto;height:700px;">
+                    <table class="table">
+                        <thead style="background-color:bisque">
+                            <tr>
+                                <th></th>
+                                <th>Name</th>
+                                <th>Number Of Hits</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+                            @foreach (NicheResult result in nicheResults)
+                            {
+                                <tr>
+                                    <td>
+                                        <button type="button" class="btn btn-primary edit-btn" @onclick="() => DisplaySummary(result.id)">Summary</button>
+                                    </td>
+                                    <td style="width:90%">@result.name</td>
+                                    <td>@result.resultHits</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+@code {
+    [Inject]
+    public IConfiguration configuration { get; set; }
+    [Inject]
+    public INicheCallsDataService callsDataService { get; set; }
+    [Inject]
+    public IInetDataService inetDataService { get; set; }
+    [Parameter]
+    public List<PIC_SecurityCheckNames> checkNames { get; set; }
+    [Parameter]
+    public string reg { get; set; }
+    [Parameter]
+    public string universalQ { get; set; }
+    public int alt { get; set; } = 1;
+    public SentrySummary sentrySummary { get; set; }
+    bool showDialog { get; set; } = false;
+    public List<NicheResult> nicheResults { get; set; } = new List<NicheResult>();
+    public List<Inet>? inets { get; set; } = new List<Inet>();
+    public List<SentryResultItem> resultItems { get; set; }
+    public BuildNiche buildNiche { get; set; } = new BuildNiche();
+    public BuildINet buildINet { get; set; } = new BuildINet();
+    public Niche niche { get; set; } = new Niche();
+    public List<Niche>? niches { get; set; } = new List<Niche>();
+    public char[] delimiters { get; set; }
+
+    public async Task Show()
+    {
+        int i = 0;
+        delimiters = configuration.GetSection("delimitString:delimitString").Value.ToCharArray();
+
+        foreach (var checkName in checkNames)
+        {
+            if (checkName.CheckName == true)
+            {
+                buildNiche = new BuildNiche();
+                SetNiche();
+                niches = await buildNiche.getDataFromNicheByName(checkName, niche, delimiters, callsDataService);
+                //inets = await buildINet.GetInetResults(checkName, delimiters, inetDataService);
+                NicheResult nicheResult = new NicheResult();
+                nicheResult.resultHits = niches.Count() + inets.Count();
+                nicheResult.name = $"{checkName.LastName}, {checkName.FirstName}";
+                i++;
+                nicheResult.id = i;
+
+                foreach (Niche niche in niches)
+                {
+                    SentryResultItem sentryResultItem = new SentryResultItem();
+
+                    sentryResultItem.subSytem = "Niche";
+                    sentryResultItem.fileNo = niche.OccurrenceFileNo;
+                    sentryResultItem.name = $"{niche.SurName}, {niche.FirstName}";
+                    sentryResultItem.gender = niche.Gender;
+                    sentryResultItem.dob = niche.DateOfBirth;
+                    sentryResultItem.Involvement = niche.Involvement;
+                    sentryResultItem.charges = niche.Charges;
+                    sentryResultItem.occurType = niche.OccurrenceType;
+                    sentryResultItem.fps = niche.FPS;
+                    sentryResultItem.link = $"{universalQ}content/QueryResultItemDetailsForPICU.aspx?System={sentryResultItem.subSytem}&CaseNo={niche.OccurrenceFileNo}";
+                    nicheResult.results.Add(sentryResultItem);
+                }
+                nicheResults.Add(nicheResult);
+            }
+        }
+        showDialog = true;
+        StateHasChanged();
+    }
+
+    private void SetAlt(int row)
+    {
+        if (row == 1)
+            alt = 0;
+        else
+            alt = 1;
+    }
+
+    private async Task DisplaySummary(int id)
+    {
+        var windowName = $"summary_window_{Guid.NewGuid().ToString("N")}";
+        var script = $"window.open('/SentrySummary/{id}', '{windowName}', 'width=1400,height=900');";
+        await JsRuntime.InvokeVoidAsync("eval", script);
+    }
+
+    private void Close()
+    {
+        showDialog = false;
+        nicheResults = new List<NicheResult>();
+        StateHasChanged();
+    }
+
+    public void SetNiche()
+    {
+        niche = new Niche();
+        niche.OccurrenceFileNo = string.Empty;
+        niche.SurName = string.Empty;
+        niche.FirstName = string.Empty;
+        niche.Gender = string.Empty;
+
+    }
+}
+
+

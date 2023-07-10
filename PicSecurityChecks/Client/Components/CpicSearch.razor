@@ -1,0 +1,43 @@
+﻿@if (showDialog)
+{
+    <div class="modal fade show d-block" id="memberModal" tabindex="-1" role="dialog" style="width:1000px;">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="titleLable" style="color:black;text-align:center">CPIC Results</h5>
+                    <button type="button" class="close" @onclick="@Close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" style="overflow:auto;height:450px;">
+                    <EditForm Model="@results">
+                        <InputTextArea id="results" class="form-control" @bind-Value="@results" rows="15" />
+                        <button type="button" class="btn btn-primary btn-edit" @onclick="Close">Close</button>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+
+    public bool showDialog { get; set; }
+    [Parameter]
+    public string results { get; set; }
+    [Parameter]
+    public EventCallback<bool> CloseEventCallBack { get; set; }
+
+    public void Show()
+    {
+        showDialog = true;
+    }
+
+    private async void Close()
+    {
+        showDialog = false;
+        results = string.Empty;
+        await CloseEventCallBack.InvokeAsync(true);
+        StateHasChanged();
+    }
+}
